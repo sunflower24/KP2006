@@ -1,0 +1,861 @@
+C....*...1.........2.........3.........4.........5.........6.........7.*.......8
+C     DMPINV 8/22/73
+C
+C     PURPOSE
+C     TO COMPUTE THE MOORE-PENROSE INVERSE OF A MATRIX.
+C
+C     USAGE
+C     CALL DMPINV(A,N,M,AMP,IR,W)
+C
+C     SUBROUTINES CALLED
+C     DAPLUS, DSVD, DGMTRA
+C
+C     ARGUMENTS
+C     A   - AN N BY M MATRIX STORED COLUMNWISE (STORAGE MODE 0)
+C           ELEMENTS ARE REAL*8
+C     N   - NUMBER OF ROWS IN A (NUMBER OF COLUMNS IN AMP)
+C           INTEGER
+C     M   - NUMBER OF COLUMNS IN A (NUMBER OF ROWS IN AMP)
+C           INTEGER
+C     AMP - MOORE-PENROSE INVERSE OF A
+C           AN M BY N MATRIX STORED COLUMNWISE (STORAGE MODE 0)
+C           ELEMENTS ARE REAL*8
+C     IR  - COMPUTED RANK OF A
+C           INTEGER
+C     W   - A WORK VECTOR LENGTH N*M+4*MIN(N,M)+MIN(N,M)**2
+C           ELEMENTS ARE REAL*8
+C
+C     PROGRAMMER
+C     DR. THOMAS M. GERIG
+C     DEPARTMENT OF STATISTICS
+C     NORTH CAROLINA STATE UNIVERSITY
+C     RALEIGH, NORTH CAROLINA  27609
+C
+C
+      SUBROUTINE DMPINV(A,N,M,AMP,IR,W)
+      IMPLICIT REAL*8(A-H,O-Z)
+      REAL*8 A(1),AMP(1),W(1)
+      MIN=MIN0(N,M)
+      I2=01+N*M
+      I3=I2+MIN
+      I4=I3+MIN**2
+      I5=I4+MIN
+      I6=I5+MIN
+      IF(N.GE.M) GO TO 10
+      CALL DGMTRA(A,W,N,M)
+      CALL DAPLUS(W,M,N,A,AMP,W(I2),W(I3),IR,1.D-13,W(I4),W(I5),W(I6))
+      CALL DGMTRA(A,AMP,N,M)
+      CALL DGMTRA(W,A,M,N)
+      RETURN
+ 10   CALL DAPLUS(A,N,M,AMP,W,W(I2),W(I3),IR,1.D-13,W(I4),W(I5),W(I6))
+      RETURN
+      END	subroutine dmpinv
+C....*...1.........2.........3.........4.........5.........6.........7.*.......8
+C     DGMTRA 8/23/73
+C
+C     PURPOSE
+C     DOUBLE PRECISION VERSION OF SSP GMTRA
+C
+      SUBROUTINE DGMTRA(A,R,N,M)
+      REAL*8 A(1),R(1)
+      DO 10 I=1,N
+      DO 10 J=1,M
+ 10   R((I-1)*M+J)=A((J-1)*N+I)
+      RETURN
+      END	subroutine dgmtra
+C....*...1.........2.........3.........4.........5.........6.........7.*.......8
+C     DAPLUS   1/10/72
+C
+C     PURPOSE
+C     COMPUTE THE MOORE-PENROSE G-INVERSE OF A MATRIX - A+
+C     OBTAIN THE SINGULAR VALUE DECOMPOSITION OF A MATRIX
+C
+C     USAGE
+C     CALL DAPLUS(A,N,M,AMP,U,S,V,IR,EPS,D1,D2,D3)
+C
+C     SUBROUTINES CALLED
+C     DSVD
+C
+C     ARGUMENTS
+C     A    - AN N BY M MATRIX STORED COLUMNWISE (STORAGE MODE OF 0)
+C            ELEMENTS OF A ARE REAL*8
+C     AMP  - MOORE-PENROSE G-INVERSE OF A
+C            AN M BY N MATRIX STORED COLUMNWISE (STORAGE MODE OF 0)
+C            ELEMENTS ARE REAL*8
+C     N    - NUMBER OF ROWS IN A  (ON OUTPUT THE NO. OF COLS. OF A+)
+C     M    - NUMBER OF COLUMNS IN A (ON OUTPUT THE NO. OF ROWS OF A+)
+C            N MUST BE GREATER THAN OR EQUAL TO M
+C     U    - AN N BY M MATRIX STORED COLUMNWISE (STORAGE MODE OF 0)
+C            ELEMENTS OF U ARE REAL*8
+C     S    - A DIAGONAL MATRIX STORED AS AN M-VECTOR (STORAGE MODE OF 2)
+C            ELEMENTS OF S ARE REAL*8
+C     V    - AN M BY M MATRIX STORED COLUMNWISE (STORAGE MODE OF 0)
+C            ELEMENTS OF V ARE REAL*8
+C     IR   - COMPUTED RANK OF A
+C            INTEGER
+C     EPS  - VALUE USED TO TEST THE SINGULAR VALUES OF A AND DETERMINE
+C            THE RANK OF A.  A REASONABLE VALUE IS EPS = 1.D-13
+C            REAL*8
+C     D1   - AN M VECTOR USED FOR WORKSPACE.
+C     D2   - AN M VECTOR USED FOR WORKSPACE.
+C     D3   - AN M VECTOR USED FOR WORKSPACE.
+C            ELEMENTS OF D1,D2,D3 ARE REAL*8
+C
+C     REMARKS
+C     A = U*S*(V-TRANSPOSE)
+C     (U-TRANSPOSE)*U = (V-TRANSPOSE)*V = V*(V-TRANSPOSE) = I
+C     A+ = V*(S+)*(U-TRANSPOSE)
+C     S+(I) = 1/S(I) IF S(I).GT.0 AND S+(I)=0 OTHERWISE
+C     IF A CAN BE DESTROYED THE FOLLOWING USAGE WILL CONSERVE CORE
+C     CALL DAPLUS(A,N,M,AMP,A,S,V,IR,EPS,D1,D2,D3)
+C     THE MATRIX A WILL CONTAIN U ON RETURN
+C
+C     REFERENCE
+C     BUSINGER,P.A. AND GOLUB,G.H., SINGULAR VALUE DECOMPOSITION OF A
+C     COMPLEX MATRIX. COMMUNICATIONS OF THE ACM 12: 564-565 (OCT. 1969)
+C
+      SUBROUTINE DAPLUS(A,N,M,AMP,U,S,V,IR,EPS,D1,D2,D3)
+      IMPLICIT REAL*8 (A-H,O-Z)
+      REAL*8 A(N,M),AMP(M,N),U(N,M),S(M),V(M,M),D1(M),D2(M),D3(M)
+      CALL COPY(A,N,M,AMP)
+      CALL DSVD(AMP,N,M,N,M,0,M,M,S,U,V,D1,D2,D3)
+C
+C     RANK DETERMINATION
+      IR=0
+      TEST=S(1)*EPS
+      DO 10 J=1,M
+      IF(S(J).GT.TEST) IR=IR+1
+      D1(J)=0.D0
+10    IF(S(J).GT.TEST) D1(J)=1.D0/S(J)
+C
+      CALL MULT(AMP,M,N,V,D1,U,D2)
+      RETURN
+      END	subroutine daplus
+
+
+      SUBROUTINE COPY(A,N,M,AMP)
+      REAL*8 A(1),AMP(1)
+      L=M*N
+      DO 10 I=1,L
+10    AMP(I)=A(I)
+      RETURN
+      END	subroutine copy
+
+
+
+      SUBROUTINE MULT(A,M,N,V,D1,U,D2)
+      REAL*8 A(M,N), V(M,M),D1(M), U(N,M), D2(M)
+      DO 30 I=1,M
+      DO 10 K=1,M
+10    D2(K)=V(I,K)*D1(K)
+      DO 20 J=1,N
+      A(I,J)=0.D0
+      DO 20 K=1,M
+20    A(I,J)=A(I,J)+D2(K)*U(J,K)
+30    CONTINUE
+      RETURN
+      END	subroutine mult
+C....*...1.........2.........3.........4.........5.........6.........7.*.......8
+   
+   
+      SUBROUTINE DSVD(A,MMAX,NMAX,M,N,P,NU,NV,S,U,V,B,C,T)
+C
+C     DOCUMENTATION FOR THIS SUBROUTINE:
+C     PETER A. BUSINGER AND GENE H. GOLUB.  SINGULAR VALUE DECOMPOSITION
+C     OF A COMPLEX MATRIX.  COMMUNICATIONS OF THE ACM 12: 564-565.
+C     (OCTOBER, 1969)
+C     THIS IS A REAL*8 VERSION OF THEIR PROGRAM WITH ETA AND TOL SET FOR
+C     AN IBM 370/165.
+C
+      IMPLICIT REAL*8 (A-H,O-Z)
+      REAL*8 A(MMAX,1), U(MMAX,1), V(NMAX,1), S(1), B(1), C(1), T(1)
+      INTEGER M,N,P,NU,NV
+      DATA ETA,TOL/1.D-14,1.D-60/
+      NP=N+P
+      N1=N+1
+C
+C     HOUSEHOLDER REDUCTION
+      C(1)=0.D0
+      K=1
+10    K1=K+1
+C
+C     ELIMINATION OF A(I,K), I=K+1....,M
+      Z=0.D0
+      DO 20 I=K,M
+20    Z=Z+A(I,K)**2
+      B(K)=0.D0
+      IF(Z.LE.TOL)GO TO 70
+      Z=DSQRT(Z)
+      B(K)=Z
+      W=DABS(A(K,K))
+      Q=1.D0
+      IF(W.NE.0.D0)Q=A(K,K)/W
+      A(K,K)=Q*(Z+W)
+      IF(K.EQ.NP)GO TO 70
+      DO 50 J=K1,NP
+      Q=0.D0
+      DO 30 I=K,M
+30    Q=Q+A(I,K)*A(I,J)
+      Q=Q/(Z*(Z+W))
+      DO 40 I=K,M
+40    A(I,J)=A(I,J)-Q*A(I,K)
+50    CONTINUE
+C
+C     PHASE TRANSFORMATION
+      Q=-A(K,K)/DABS(A(K,K))
+      DO 60 J=K1,NP
+60    A(K,J)=Q*A(K,J)
+C
+C     ELIMINATION OF A(K,J), J=K+Z,...,N
+70    IF(K.EQ.N)GO TO 140
+      Z=0.D0
+      DO 80 J=K1,N
+80    Z=Z+A(K,J)**2
+      C(K1)=0.D0
+      IF(Z.LE.TOL)GO TO 130
+      Z=DSQRT(Z)
+      C(K1)=Z
+      W=DABS(A(K,K1))
+      Q=1.D0
+      IF(W.NE.0.D0)Q=A(K,K1)/W
+      A(K,K1)=Q*(Z+W)
+      DO 110 I=K1,M
+      Q=0.D0
+      DO 90 J=K1,N
+90    Q=Q+A(K,J)*A(I,J)
+      Q=Q/(Z*(Z+W))
+      DO 100 J=K1,N
+100   A(I,J)=A(I,J)-Q*A(K,J)
+110   CONTINUE
+C
+C     PHASE TRANSFORMATION
+      Q=-A(K,K1)/DABS(A(K,K1))
+      DO 120 I=K1,M
+120   A(I,K1)=A(I,K1)*Q
+130   K=K1
+      GO TO 10
+C
+C     TOLERANCE FOR NEGLIGIBLE ELEMENTS
+140   EPS=0.D0
+      DO 150 K=1,N
+      S(K)=B(K)
+      T(K)=C(K)
+150   EPS=DMAX1(EPS,S(K)+T(K))
+      EPS=EPS*ETA
+C
+C     INITIALIZATION OF U AND V
+      IF(NU.EQ.0)GO TO 180
+      DO 170 J=1,NU
+      DO 160 I=1,M
+160   U(I,J)=0.D0
+170   U(J,J)=1.D0
+180   IF(NV.EQ.0)GO TO 210
+      DO 200 J=1,NV
+      DO 190 I=1,N
+190   V(I,J)=0.D0
+200   V(J,J)=1.D0
+C
+C     QR DIAGONALIZATION
+210   DO 380 KK=1,N
+      K=N1-KK
+C
+C     TEST FOR SPLIT
+220   DO 230 LL=1,K
+      L=K+1-LL
+      IF(DABS(T(L)).LE.EPS)GO TO 290
+      IF(DABS(S(L-1)).LE.EPS)GO TO 240
+230   CONTINUE
+C
+C     CANCELLATION OF E(L)
+240   CS=0.D0
+      SN=1.D0
+      L1=L-1
+      DO 280 I=L,K
+      F=SN*T(I)
+      T(I)=CS*T(I)
+      IF(DABS(F).LE.EPS)GO TO 290
+      H=S(I)
+      W=DSQRT(F*F+H*H)
+      S(I)=W
+      CS=H/W
+      SN=-F/W
+      IF(NU.EQ.0)GO TO 260
+      DO 250 J=1,N
+      X=U(J,L1)
+      Y=U(J,I)
+      U(J,L1)=X*CS+Y*SN
+250   U(J,I)=Y*CS-X*SN
+260   IF(NP.EQ.N)GO TO 280
+      DO 270 J=N1,NP
+      Q=A(L1,J)
+      R=A(I,J)
+      A(L1,J)=Q*CS+R*SN
+270   A(I,J)=R*CS-Q*SN
+280   CONTINUE
+C
+C     TEST FOR CONVERGENCE
+290   W=S(K)
+      IF(L.EQ.K)GO TO 360
+C
+C     ORIGIN SHIFT
+      X=S(L)
+      Y=S(K-1)
+      G=T(K-1)
+      H=T(K)
+      F=((Y-W)*(Y+W)+(G-H)*(G+H))/(2.D0*H*Y)
+      G=DSQRT(F*F+1.D0)
+      IF(F.LT.0.D0)G=-G
+      F=((X-W)*(X+W)+(Y/(F+G)-H)*H)/X
+C
+C     QR STEP
+      CS=1.D0
+      SN=1.D0
+      L1=L+1
+      DO 350 I=L1,K
+      G=T(I)
+      Y=S(I)
+      H=SN*G
+      G=CS*G
+      W=DSQRT(H*H+F*F)
+      T(I-1)=W
+      CS=F/W
+      SN=H/W
+      F=X*CS+G*SN
+      G=G*CS-X*SN
+      H=Y*SN
+      Y=Y*CS
+      IF(NV.EQ.0)GO TO 310
+      DO 300 J=1,N
+      X=V(J,I-1)
+      W=V(J,I)
+      V(J,I-1)=X*CS+W*SN
+300   V(J,I)=W*CS-X*SN
+310   W=DSQRT(H*H+F*F)
+      S(I-1)=W
+      CS=F/W
+      SN=H/W
+      F=CS*G+SN*Y
+      X=CS*Y-SN*G
+      IF(NU.EQ.0)GO TO 330
+      DO 320 J=1,N
+      Y=U(J,I-1)
+      W=U(J,I)
+      U(J,I-1)=Y*CS+W*SN
+320   U(J,I)=W*CS-Y*SN
+330   IF(N.EQ.NP)GO TO 350
+      DO 340 J=N1,NP
+      Q=A(I-1,J)
+      R=A(I,J)
+      A(I-1,J)=Q*CS+R*SN
+340   A(I,J)=R*CS-Q*SN
+350   CONTINUE
+      T(L)=0.D0
+      T(K)=F
+      S(K)=X
+      GO TO 220
+C
+C     CONVERGENCE
+360   IF(W.GE.0.D0)GO TO 380
+      S(K)=-W
+      IF(NV.EQ.0)GO TO 380
+      DO 370 J=1,N
+370   V(J,K)=-V(J,K)
+380   CONTINUE
+C
+C     SORT SINGULAR VALUES
+      DO 450 K=1,N
+      G=-1.D0
+      J=K
+      DO 390 I=K,N
+      IF(S(I).LE.G)GO TO 390
+      G=S(I)
+      J=I
+390   CONTINUE
+      IF(J.EQ.K)GO TO 450
+      S(J)=S(K)
+      S(K)=G
+      IF(NV.EQ.0)GO TO 410
+      DO 400 I=1,N
+      Q=V(I,J)
+      V(I,J)=V(I,K)
+400   V(I,K)=Q
+410   IF(NU.EQ.0)GO TO 430
+      DO 420 I=1,N
+      Q=U(I,J)
+      U(I,J)=U(I,K)
+420   U(I,K)=Q
+430   IF(N.EQ.NP)GO TO 450
+      DO 440 I=N1,NP
+      Q=A(J,I)
+      A(J,I)=A(K,I)
+440   A(K,I)=Q
+450   CONTINUE
+C
+C     BACK TRANSFORMATION
+      IF(NU.EQ.0)GO TO 510
+      DO 500 KK=1,N
+      K=N1-KK
+      IF(B(K).EQ.0.D0)GO TO 500
+      Q=-A(K,K)/DABS(A(K,K))
+      DO 460 J=1,NU
+460   U(K,J)=Q*U(K,J)
+      DO 490 J=1,NU
+      Q=0.D0
+      DO 470 I=K,M
+470   Q=Q+A(I,K)*U(I,J)
+      Q=Q/(DABS(A(K,K))*B(K))
+      DO 480 I=K,M
+480   U(I,J)=U(I,J)-Q*A(I,K)
+490   CONTINUE
+500   CONTINUE
+510   IF(NV.EQ.0)GO TO 570
+      IF(N.LT.2)GO TO 570
+      DO 560 KK=2,N
+      K=N1-KK
+      K1=K+1
+      IF(C(K1).EQ.0.D0)GO TO 560
+      Q=-A(K,K1)/DABS(A(K,K1))
+      DO 520 J=1,NV
+520   V(K1,J)=Q*V(K1,J)
+      DO 550 J=1,NV
+      Q=0.D0
+      DO 530 I=K1,N
+530   Q=Q+A(K,I)*V(I,J)
+      Q=Q/(DABS(A(K,K1))*C(K1))
+      DO 540 I=K1,N
+540   V(I,J)=V(I,J)-Q*A(K,I)
+550   CONTINUE
+560   CONTINUE
+570   RETURN
+      END	subroutine dsvd
+
+
+	BLOCK DATA
+      COMMON /ZLNSIZ/ LNSIZE
+      DATA LNSIZE/80/
+      END
+
+
+
+
+
+
+C.hr DGMPNT
+C@
+C....*...1.........2.........3.........4.........5.........6.........7.*
+C     DGMPNT   7/16/87
+C
+C     PURPOSE
+C     PRINT A MATRIX.
+C
+C     USAGE
+C     CALL DGMPNT(A,M,N)
+C
+C     ARGUMENTS
+C     A - AN M BY N MATRIX STORED COLUMNWISE (STORAGE MODE 0).
+C         REAL*8
+C     M - NUMBER OF ROWS IN A
+C         INTEGER*4
+C     N - NUMBER OF COLUMNS IN A
+C         INTEGER*4
+C
+C     COMMENT
+C     THE DEFAULT LINESIZE IS 133, 132 PLUS CARRIAGE CONTROL CHARACTER.
+C     THE USAGE:
+C     COMMON /ZLNSIZ/ LNSIZE
+C     LNSIZE=80
+C     WILL CHANGE THE LINESIZE TO 80.  LINESIZES BETWEEN 72 AND 133 ARE
+C     PERMITTED.
+C
+C     PROGRAMMER
+C     DR. A. RONALD GALLANT
+C     DEPARTMENT OF STATISTICS
+C     NORTH CAROLINA STATE UNIVERSITY
+C     RALEIGH, NORTH CAROLINA  27695-8203
+C
+C
+      SUBROUTINE DGMPNT(A,M,N)
+      IMPLICIT REAL*8 (A-H,O-Z)
+      INTEGER*4 BLOCKS,REMAIN,START,STOP,OUT
+      REAL*8 A(M,N),F
+      CHARACTER*1 DIGIT(10),DUMMY(8),COL(9)
+      CHARACTER*8 TYPE(14),FMT(13)
+      CHARACTER*104 CFMT
+      COMMON /ZLNSIZ/ LNSIZE
+      EQUIVALENCE (FMT(1),DUMMY(1)),(FMT(1),CFMT)
+      DATA FMT   /'(   X,  ',11*'        ','       )'/
+      DATA DIGIT /'0','1','2','3','4','5','6','7','8','9'/
+      DATA COL   /6*' ','C','O','L'/
+      DATA TYPE  /',0PF12.1',',1PD12.4',',0PF12.8',',0PF12.7',
+     &            ',0PF12.6',',0PF12.5',',0PF12.4',',0PF12.3',
+     &            ',0PF12.2',',0PF12.1',',0PF12.0',',9A1,I3 ',
+     &            ' 6X     ','''ROW'',I3'/
+      OUT=3
+      LNSIZ=LNSIZE
+      IF((LNSIZE.LT.72).OR.(LNSIZE.GT.133)) LNSIZ=133
+      MAXCOL=(LNSIZ-8)/12
+      IF(N.LT.MAXCOL) MAXCOL=N
+      IPAD=(LNSIZ-8-12*MAXCOL)/2+1
+      IPAD10=IPAD/10
+      IPAD1=IPAD-10*IPAD10
+      DUMMY(3)=DIGIT(IPAD10+1)
+      DUMMY(4)=DIGIT(IPAD1+1)
+      START=1
+11    STOP=START-1+MAXCOL
+      IF(STOP.GT.N) STOP=N
+      K=2
+      DO 13 J=START,STOP
+      K=K+1
+13    FMT(K)=TYPE(12)
+      FMT(2)=TYPE(13)
+      WRITE(OUT,3001)
+      WRITE(OUT,3001)
+      WRITE(OUT,CFMT) (COL,J,J=START,STOP)
+      WRITE(OUT,3001)
+      FMT(2)=TYPE(14)
+      DO 19 I=1,M
+      K=2
+      DO 18 J=START,STOP
+      K=K+1
+      FMT(K)=TYPE(2)
+      F=DABS(A(I,J))
+      IF(F.LT.1.D+8 ) FMT(K)=TYPE(11)
+      IF(F.LT.1.D+5 ) FMT(K)=TYPE(10)
+      IF(F.LT.1.D+4 ) FMT(K)=TYPE( 9)
+      IF(F.LT.1.D+3 ) FMT(K)=TYPE( 8)
+      IF(F.LT.1.D+2 ) FMT(K)=TYPE( 7)
+      IF(F.LT.1.D+1 ) FMT(K)=TYPE( 6)
+C     IF(F.LT.1.D+0 ) FMT(K)=TYPE( 6)
+      IF(F.LT.1.D-1 ) FMT(K)=TYPE( 5)
+      IF(F.LT.1.D-2 ) FMT(K)=TYPE( 3)
+      IF(F.LT.1.D-4 ) FMT(K)=TYPE( 2)
+      IF(F.LT.1.D-55) FMT(K)=TYPE( 1)
+18    CONTINUE
+19    WRITE(OUT,CFMT) I,(A(I,J),J=START,STOP)
+      IF(STOP.EQ.N) RETURN
+      START=STOP+1
+      GO TO 11
+3001  FORMAT(' ')
+      END	 subroutine  DGMPNT
+C.hr HEADER
+C@
+C....*...1.........2.........3.........4.........5.........6.........7.*
+C     HEADER   7/16/87
+C
+C     PURPOSE
+C     TITLE OUTPUT.
+C
+C     USAGE
+C     CALL HEADER(TITLE)
+C
+C     ARGUMENTS
+C     TITLE - A CHARACTER STRING ENCLOSED IN QUOTES.  THE LAST CHARACTER
+C             MUST BE AN UNDERSCORE.  THE STRING IS MADE UP OF AN UN-
+C             LIMITED NUMBER OF CONCATONATED LINES.  A LINE IS MADE UP
+C             OF 0-68 CHARACTERS FOLLOWED BY A SLASH.
+C
+C     REMARK
+C     AN EXAMPLE IS:
+C     CALL HEADER('//LINE 1/LINE 2/LINE 3///_')
+C
+C     COMMENT
+C     THE DEFAULT LINESIZE IS 133, 132 PLUS CARRIAGE CONTROL CHARACTER.
+C     THE USAGE:
+C     COMMON /ZLNSIZ/ LNSIZE
+C     LNSIZE=80
+C     WILL CHANGE THE LINESIZE TO 80.  LINESIZES BETWEEN 72 AND 133 ARE
+C     PERMITTED.
+C
+C
+      SUBROUTINE HEADER(TITLE)
+      IMPLICIT REAL*8 (A-H,O-Z)
+      COMMON /ZLNSIZ/ LNSIZE
+      CHARACTER*1 DIGIT(10),LDUMMY(8)
+      CHARACTER*1 TITLE(1),PRINT(68),SLASH,UNC,LTR,BLANK
+      CHARACTER*2 I1,I2,I3
+      CHARACTER*4 DUMMY(18)
+      CHARACTER*8 FMT1(11),FMT2(3),FMT3(3),RDUMMY
+      CHARACTER*24 CFMT2,CFMT3
+      CHARACTER*88 CFMT1
+      EQUIVALENCE (FMT1(1),CFMT1),(FMT2(1),CFMT2),(FMT3,CFMT3)
+      EQUIVALENCE (RDUMMY,LDUMMY(1)),(DUMMY(1),PRINT(1))
+      DATA FMT1/'(1X,    ','X,70H***',8*'********','***  )  '/
+      DATA FMT2/'(1X,    ','X,1H*,17','A4,1H*) '/
+      DATA FMT3/'(1X,    ','X,1H*,68','X,1H*)  '/
+      DATA DIGIT/'0','1','2','3','4','5','6','7','8','9'/
+      DATA SLASH/'/'/,UNC/'_'/,BLANK/' '/
+      IOUT=3
+      LNSIZ=LNSIZE
+      IF((LNSIZE.LT.72).OR.(LNSIZE.GT.133)) LNSIZ=133
+      RDUMMY=FMT1(1)
+      IPAD=(LNSIZ-72)/2+1
+      IPAD10=IPAD/10
+      IPAD1=IPAD-10*IPAD10
+      LDUMMY(7)=DIGIT(IPAD10+1)
+      LDUMMY(8)=DIGIT(IPAD1+1)
+      FMT1(1)=RDUMMY
+      FMT2(1)=RDUMMY
+      FMT3(1)=RDUMMY
+      WRITE(IOUT,3001)
+      WRITE(IOUT,3001)
+      WRITE(IOUT,CFMT1)
+      M=0
+      L=0
+10    M=M+L
+      L=0
+      DO 20 I=1,69
+      LTR=TITLE(M+I)
+      IF((LTR.EQ.SLASH).OR.(LTR.EQ.UNC)) GO TO 25
+20    L=I
+25    IF((L.EQ.0).AND.(LTR.EQ.UNC)) GO TO 50
+      IF(L.EQ.0) GO TO 60
+      IPAD=(68-L)/2
+      DO 30 I=1,68
+30    PRINT(I)=BLANK
+      DO 40 I=1,L
+40    PRINT(I+IPAD)=TITLE(M+I)
+      WRITE(IOUT,CFMT2) (DUMMY(I),I=1,17)
+      L=L+1
+      LTR=TITLE(M+L+1)
+      IF(LTR.EQ.UNC) GO TO 50
+      GO TO 10
+50    WRITE(IOUT,CFMT1)
+      RETURN
+60    WRITE(IOUT,CFMT3)
+      L=L+1
+      GO TO 10
+3001  FORMAT(' ')
+      END	 subroutine header
+C.hr SPACER
+C@
+C....*...1.........2.........3.........4.........5.........6.........7.*
+C     SPACER   5/10/73
+C
+C     PURPOSE
+C     SPACE OUTPUT
+C
+C     USAGE
+C     CALL SPACER(I)
+C
+C     ARGUMENT
+C     I - NUMBER OF LINES TO BE SKIPPED.  IF I=0 THEN THE PRINTER IS
+C         ADVACED TO A NEW PAGE.
+C         INTEGER*4
+C
+C
+      SUBROUTINE SPACER(I)
+      IF(I.EQ.0) WRITE(3,301)
+      IF(I/66.GT.0) WRITE(3,301)
+      IF(I.LE.0) RETURN
+      M=MOD(I,66)
+      DO 10 J=1,M
+10    WRITE(3,302)
+      RETURN
+301   FORMAT('1')
+302   FORMAT(' ')
+      END	subroutine spacer
+C.hr DSWEEP
+C@
+C....*...1.........2.........3.........4.........5.........6.........7.*
+C     DSWEEP   10/4/72
+C
+C     PURPOSE
+C     INVERT A POSITIVE DEFINITE MATRIX IN PLACE BY A DIAGONAL SWEEP.
+C
+C     USAGE
+C     CALL DSWEEP(A,N,EPS,IER)
+C
+C     ARGUMENTS
+C     A   - SYMMETRIC POSITIVE DEFINITE N BY N MATRIX STORED COLUMNWISE
+C           (STORAGE MODE OF 0).  ON RETURN CONTAINS THE INVERSE OF A
+C           STORED COLUMNWISE.
+C           REAL*8
+C     N   - NUMBER OF ROWS AND COLUMNS OF A.
+C           INTEGER
+C     EPS - INPUT CONSTANT USED AS A RELATIVE TOLERANCE IN TESTING FOR
+C           DEGENERATE RANK.  A REASONABLE VALUE FOR EPS IS 1.D-13.
+C           REAL*8
+C     IER - ERROR PARAMETER CODED AS FOLLOWS
+C           IER=0  NO ERROR, RANK OF A IS N.
+C           IER.GT.0  A IS SINGULAR, RANK OF A IS N-IER.
+C           INTEGER
+C
+C     REMARK
+C     IF IER.GT.0 THEN DSWEEP RETURNS A G-INVERSE.
+C
+C     REFERENCE
+C     SCHATZOFF, M. ET AL.  EFFICIENT CALCULATION OF ALL POSSIBLE REG-
+C     RESSIONS.  TECHNOMETRICS, 10. 769-79 (NOVEMBER 1968)
+C
+C     PROGRAMMER
+C     DR. A. RONALD GALLANT
+C     DEPARTMANT OF STATISTICS
+C     NORTH CAROLINA STATE UNIVERSITY
+C     RALEIGH, NORTH CAROLINA  27696-8203
+C
+C
+C
+      SUBROUTINE DSWEEP(A,N,EPS,IER)
+      IMPLICIT REAL*8 (A-H,O-Z)
+      REAL*8 A(1)
+      TOL=0.D0
+      DO 5 I=1,N
+      II=N*(I-1)+I
+      TEST=A(II)
+5     IF(TEST.GT.TOL) TOL=TEST
+      TOL=TOL*EPS
+      IER=0
+      DO 50 K=1,N
+      KK=N*(K-1)+K
+      AKK=A(KK)
+      IF(AKK.GT.TOL) GO TO 20
+      DO 10 J=K,N
+      KJ=N*(J-1)+K
+10    A(KJ)=0.D0
+      IF(K.EQ.1) GO TO 16
+      KLESS1=K-1
+      DO 15 I=1,KLESS1
+      IK=KK-I
+15    A(IK)=0.D0
+16    IER=IER+1
+      GO TO 50
+20    D=1.D0/AKK
+      DO 25 I=1,N
+      DO 25 J=I,N
+      IF((I.EQ.K).OR.(J.EQ.K)) GO TO 25
+      IJ=N*(J-1)+I
+      IF(I.LT.K) AIK=A(N*(K-1)+I)
+      IF(I.GT.K) AIK=A(N*(I-1)+K)
+      IF(K.LT.J) AKJ=A(N*(J-1)+K)
+      IF(K.GT.J) AKJ=-A(N*(K-1)+J)
+      A(IJ)=A(IJ)-AIK*AKJ*D
+25    CONTINUE
+      DO 30 J=K,N
+      KJ=N*(J-1)+K
+30    A(KJ)=A(KJ)*D
+      IF(K.EQ.1) GO TO 36
+      KLESS1=K-1
+      DO 35 I=1,KLESS1
+      IK=KK-I
+35    A(IK)=-A(IK)*D
+36    A(KK)=D
+50    CONTINUE
+      DO 55 I=1,N
+      DO 55 J=I,N
+      IF(I.EQ.J) GO TO 55
+      IJ=N*(J-1)+I
+      JI=N*(I-1)+J
+      A(JI)=A(IJ)
+55    CONTINUE
+      RETURN
+      END	subroutine dsweep
+C.hr DGMPRD
+C@
+C....*...1.........2.........3.........4.........5.........6.........7.*
+C     DGMPRD  6/15/83
+C
+C     PURPOSE
+C     MULTIPLY TWO MATRICES: R = A*B
+C
+C     USAGE
+C     CALL DGMPRD(A,B,R,N,M,L)
+C
+C     ARGUMENTS
+C     A - INPUT N BY M MATRIX STORED COLUMNWISE (STORAGE MODE 0)
+C         REAL*8
+C     B - INPUT M BY L MATRIX STORED COLUMNWISE (STORAGE MODE 0)
+C         REAL*8
+C     R - OUTPUT N BY L MATRIX STORED COLUMNWISE (STORAGE MODE 0)
+C         REAL*8
+C     N - NUMBER OF ROWS IN A
+C         INTEGER*4
+C     M - NUMBER OF COLUMNS IN A AND NUMBER OF ROWS IN A
+C         INTEGER*4
+C     L - NUMBER OF COLUMNS IN B
+C         INTEGER*4
+C
+C     COMMENT
+C     THE ROUTINE IS WRITTEN SO AS TO MINIMIZE THE NUMBER OF PAGE
+C     FAULTS IN A VIRTUAL ENVIRONMENT.
+C
+      SUBROUTINE DGMPRD(A,B,R,N,M,L)
+      REAL*8 A(1),B(1),R(1)
+C     A(N,M),B(M,L),R(N,L)
+      NL=N*L
+      DO 10 I=1,NL
+10    R(I)=0.D0
+      DO 20 J=1,L
+      DO 20 K=1,M
+      DO 20 I=1,N
+20    R(N*(J-1)+I)=R(N*(J-1)+I)+A(N*(K-1)+I)*B(M*(J-1)+K)
+      RETURN
+      END	subroutine DGMPRD
+C.hr DMFSD
+C@
+C....*...1.........2.........3.........4.........5.........6.........7.*
+C     SUBROUTINE DMFSD
+C
+C     PURPOSE
+C     FACTOR A GIVEN SYMMETRIC POSITIVE DEFINITE MATRIX
+C
+C     USAGE
+C     CALL DMFSD(A,N,EPS,IER)
+C
+C     ARGUMENTS
+C     A   - UPPER TRIANGULAR PART OF GIVEN SYMMETRIC POSITIVE DEFINITE N
+C           BY N MATRIX
+C
+C     N   - THE NUMBER OF ROWS (COLUMNS) IN GIVEN MATRIX
+C           INTEGER*4
+C     EPS - INPUT CONSTANT WHCIH IS USED AS RELATIVE TOLERANCE FOR TEST
+C           ON LOSS OF SIGNIFICANCE, A REASONABLE VALUE IS 1.D-13.
+C           REAL*8
+C     IER - ERROR PARAMETER, CODED AS FOLLOWS
+C           IER=0  - NO ERROR
+C           IER=-1 - NO RESULT BECAUSE OF WRONG INPUT PARAMETER N OR
+C                    BECAUSE SOME RADICAND IS NON-POSITIVE (MATRIX A IS
+C                    NOT POSITIVE DEFINITE, POSSIBLY DUE TO LOSS OF
+C                    SIGNIFICANCE)
+C           IER=K  - WARNING WHICH INDICATES LOSS OF SIGNIFICANCE.  THE
+C                    RADICAND FORMED AT FACTORIZATION STEP K+1 WAS STILL
+C                    POSITIVE BUT NO LONGER GREATER THAN
+C                    ABS(EPS*A(K+1,K+1)
+C
+C     REMARK
+C     THIS IS A COPY OF SSP ROUTINE DMFSD
+C
+      SUBROUTINE DMFSD(A,N,EPS,IER)
+      DIMENSION A(1)
+      DOUBLE PRECISION DPIV,DSUM,A
+      IF(N-1) 12,1,1
+    1 IER=0
+      KPIV=0
+      DO 11 K=1,N
+      KPIV=KPIV+K
+      IND=KPIV
+      LEND=K-1
+      TOL=ABS(EPS*SNGL(A(KPIV)))
+      DO 11 I=K,N
+      DSUM=0.D0
+      IF(LEND) 2,4,2
+    2 DO 3 L=1,LEND
+      LANF=KPIV-L
+      LIND=IND-L
+    3 DSUM=DSUM+A(LANF)*A(LIND)
+    4 DSUM=A(IND)-DSUM
+      IF(I-K) 10,5,10
+    5 IF(SNGL(DSUM)-TOL) 6,6,9
+    6 IF(DSUM) 12,12,7
+    7 IF(IER) 8,8,9
+    8 IER=K-1
+    9 DPIV=DSQRT(DSUM)
+      A(KPIV)=DPIV
+      DPIV=1.D0/DPIV
+      GO TO 11
+   10 A(IND)=DSUM*DPIV
+   11 IND=IND+I
+      RETURN
+   12 IER=-1
+      RETURN
+      END	subroutine DMFSD
+
